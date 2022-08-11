@@ -12,12 +12,21 @@ function App() {
   const [customerAddress, setCustomerAddress] = useState(null);
   const [error, setError] = useState(null);
 
-  const contractAddress = 'YOUR_CONTRACT_ADDRESS';
+  const contractAddress = '0x9b428A2D32287b2Dc84b8C2F295920a488e7635d';
   const contractABI = abi.abi;
 
   const checkIfWalletIsConnected = async () => {
     try {
-      //your code here
+      if(window.ethereum) {
+        const accounts = await window.ethereum.request({method: "eth_requestAccounts"});
+        const account = accounts[0];
+        setIsWalletConnected(true);
+        setCustomerAddress(account);
+        console.log("Account connected:", account);
+      } else {
+        setError("Please install a MetaMask wallet to use our bank.");
+        console.log("No MetaMask detected.")
+      }
     } catch (error) {
       console.log(error);
     }
@@ -25,7 +34,18 @@ function App() {
 
   const getBankName = async () => {
     try {
-      //your code here
+      if(window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const bankContract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        let bankName = await bankContract.bankName(); // 智能合约中使用 public 关键字，会自动获得一个 getter 函数
+        bankName = utils.parseBytes32String(bankName); // 将银行名称转换为可读字符串
+        setCurrentBankName(bankName.toString()); // 将其设置为我们当前的银行名称
+      } else {
+        console.log("Ethereum object not found, install Metamask.");
+        setError("Please install a MetaMask wallet to use our bank.");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -34,7 +54,20 @@ function App() {
   const setBankNameHandler = async (event) => {
     event.preventDefault();
     try {
-      //your code here
+      if(window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const bankContract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        const txn = await bankContract.setBankName(utils.formatBytes32String(inputValue.bankName));
+        console.log("Set Bank Name...");
+        await txn.wait();
+        console.log("Bank Name Changed", txn.hash);
+        await getBankName();
+      } else {
+        console.log("Ethereum object not found, install Metamask.");
+        setError("Please install a MetaMask wallet to use our bank.");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -42,7 +75,22 @@ function App() {
 
   const getbankOwnerHandler = async () => {
     try {
-      //your code here
+      if(window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const bankContract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        let owner = await bankContract.bankOwner();
+        setBankOwnerAddress(owner);
+
+        const [account] = await window.ethereum.request({method: "eth_requestAccounts"});
+        if(owner.toLowerCase() === account.toLowerCase()) {
+          setIsBankerOwner(true);
+        }
+      } else {
+        console.log("Ethereum object not found, install Metamask.");
+        setError("Please install a MetaMask wallet to use our bank.");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -50,7 +98,18 @@ function App() {
 
   const customerBalanceHandler = async () => {
     try {
-      //your code here
+      if(window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const bankContract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        let balance = await bankContract.getCustomerBalance();
+        setCustomerTotalBalance(utils.formatEther(balance));
+        console.log("Retrived balance...", balance);
+      } else {
+        console.log("Ethereum object not found, install Metamask.");
+        setError("Please install a MetaMask wallet to use our bank.");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -62,7 +121,21 @@ function App() {
 
   const deposityMoneyHandler = async (event) => {
     try {
-      //your code here
+      if(window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const bankContract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        const txn = bankContract.depositMoney({value: ethers.utils.parseEther(inputValue.deposit)});
+        console.log("Depositing money...");
+
+        await txn.wait();
+        console.log("Depositing money...Done", txn.hash);
+        customerBalanceHandler();
+      } else {
+        console.log("Ethereum object not found, install Metamask.");
+        setError("Please install a MetaMask wallet to use our bank.");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -70,7 +143,24 @@ function App() {
 
   const withDrawMoneyHandler = async (event) => {
     try {
-      //your code here
+      if(window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const bankContract = new ethers.Contract(contractAddress, contractABI, signer);
+
+        let myAddress = await signer.getAddress();
+        console.log("Provider signer...", myAddress);
+
+        const txn = await bankContract.withdrawMoney(myAddress, ethers.utils.parseEther(inputValue.withdraw));
+        console.log("Withdrawing money...");
+
+        await txn.wait();
+        console.log("Withdrawing money...Done", txn.hash);
+        customerBalanceHandler();
+      } else {
+        console.log("Ethereum object not found, install Metamask.");
+        setError("Please install a MetaMask wallet to use our bank.");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -81,6 +171,7 @@ function App() {
     getBankName();
     getbankOwnerHandler();
     customerBalanceHandler()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWalletConnected])
 
   return (
